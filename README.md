@@ -1,16 +1,16 @@
 <img width="3188" height="1202" alt="frame (3)" src="https://github.com/user-attachments/assets/517ad8e9-ad22-457d-9538-a9e62d137cd7" />
 
 
-# [Puzhukkeni] 🎯
+# Puzhukkeni 🎯
 
 
 ## Basic Details
-### Team Name: [DoubleTrouble]
+### Team Name: DoubleTrouble
 
 
 ### Team Members
-[Vishnu Nandan] - [Christ College of Engineering]
-[Rohan K Sojo] - [Christ College of College]
+Vishnu Nandan - Christ College of Engineering
+Rohan K Sojo - Christ College of College
 
 ### Project Description
 A completely over-engineered alarm clock where you must win a frantic mini-game to stop the alarm. Wake up by tapping worms before greedy virtual birds snatch them away — every snooze makes the game harder.
@@ -37,10 +37,10 @@ For Hardware:
 For Software:
 
 # Installation
-```bash
+bash
 git clone https://github.com/rohanks-hub/Puzhukkeni-ULP2.0.git
 cd Puzhukkeni-ULP2.0
-flutter pub get
+flutter pub get 
 
 # Run
 flutter run -d chrome
@@ -48,6 +48,8 @@ flutter run -d chrome
 
 ### Project Documentation
 For Software:
+
+## Project Screenshots
 
 ## Project Screenshots
 
