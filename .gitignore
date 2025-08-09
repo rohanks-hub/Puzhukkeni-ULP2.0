@@ -1,0 +1,38 @@
+# Miscellaneous
+*.class
+*.lock
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/App.framework
+/ios/Flutter/Flutter.framework
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/flutter_assets/
+/ios/Runner/GeneratedPluginRegistrant.*
+/android/.gradle/
+/android/app/build/
+/android/build/
+/android/app/src/main/jniLibs/
+!/android/gradle/wrapper/gradle-wrapper.jar
+*.iml
+*.metadata
+*.idea/
+
+# Specific to your project if needed (leave empty or add as you find them)
+
