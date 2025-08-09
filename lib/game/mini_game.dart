@@ -5,208 +5,206 @@ import 'package:flutter/material.dart';
 class MiniGameScreen extends StatefulWidget {
   final VoidCallback onWin;
   final VoidCallback onLose;
-
-  const MiniGameScreen({Key? key, required this.onWin, required this.onLose}) : super(key: key);
+  final VoidCallback stopAlarm;
+  const MiniGameScreen({
+    super.key,
+    required this.onWin,
+    required this.onLose,
+    required this.stopAlarm,
+  });
 
   @override
   State<MiniGameScreen> createState() => _MiniGameScreenState();
 }
 
-class _MiniGameState {
-  Offset position;
-  bool alive;
-  _MiniGameState(this.position) : alive = true;
-}
-
-class _MiniGameScreenState extends State<MiniGameScreen> with SingleTickerProviderStateMixin {
+class _MiniGameScreenState extends State<MiniGameScreen> {
   static const int wormCount = 5;
   static const int birdCount = 2;
   static const double wormRadius = 20;
   static const double birdSize = 30;
   static const int gameDuration = 20; // seconds
+  final Random _rand = Random();
 
-  late List<_MiniGameState> worms;
-  late List<_MiniGameState> birds;
+  late List<Offset> worms;
+  late List<Offset> birds;
+  late List<bool> wormAlive;
+  late Timer _timer;
+  late Timer _moveTimer;
   int playerScore = 0;
   int birdScore = 0;
-  late Timer timer;
   int timeLeft = gameDuration;
-  late Ticker _ticker;
-  final Random _rand = Random();
-  Size? _canvasSize;
+  Size? canvasSize;
 
   @override
   void initState() {
     super.initState();
-    _initGame();
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      setState(() {
-        timeLeft--;
-        if (timeLeft <= 0) _endGame(false);
-      });
-    });
-    _ticker = createTicker(_onTick)..start();
+    _startGame();
   }
 
-  void _initGame() {
-    worms = List.generate(wormCount, (_) => _MiniGameState(_randomPos()));
-    birds = List.generate(birdCount, (_) => _MiniGameState(_randomPos()));
+  void _startGame() {
+    worms = List.generate(wormCount, (_) => Offset(_rand.nextDouble() * 300 + 50, _rand.nextDouble() * 300 + 50));
+    birds = List.generate(birdCount, (_) => Offset(_rand.nextDouble() * 300 + 50, _rand.nextDouble() * 300 + 50));
+    wormAlive = List.filled(wormCount, true);
     playerScore = 0;
     birdScore = 0;
     timeLeft = gameDuration;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        timeLeft--;
+        if (timeLeft <= 0) {
+          _endGame(false);
+        }
+      });
+    });
+    _moveTimer = Timer.periodic(const Duration(milliseconds: 50), (_) => _moveEntities());
   }
 
-  Offset _randomPos() {
-    if (_canvasSize == null) return Offset.zero;
-    return Offset(
-      _rand.nextDouble() * (_canvasSize!.width - wormRadius * 2) + wormRadius,
-      _rand.nextDouble() * (_canvasSize!.height - wormRadius * 2) + wormRadius,
-    );
-  }
-
-  void _onTick(Duration elapsed) {
+  void _moveEntities() {
+    if (canvasSize == null) return;
     setState(() {
-      // Move worms and birds randomly
-      for (var worm in worms) {
-        if (!worm.alive) continue;
-        worm.position += Offset(_rand.nextDouble() * 2 - 1, _rand.nextDouble() * 2 - 1) * 1.5;
+      // Move worms
+      for (int i = 0; i < worms.length; i++) {
+        if (!wormAlive[i]) continue;
+        worms[i] = _moveRandom(worms[i], 2, canvasSize!);
       }
-      for (var bird in birds) {
-        if (!bird.alive) continue;
-        bird.position += Offset(_rand.nextDouble() * 2 - 1, _rand.nextDouble() * 2 - 1) * 2.0;
+      // Move birds
+      for (int i = 0; i < birds.length; i++) {
+        birds[i] = _moveRandom(birds[i], 3, canvasSize!);
       }
-      // Bird eats worm
-      for (var bird in birds) {
-        if (!bird.alive) continue;
-        for (var worm in worms) {
-          if (!worm.alive) continue;
-          if ((bird.position - worm.position).distance < wormRadius + birdSize / 2) {
-            worm.alive = false;
+      // Check collisions
+      for (int b = 0; b < birds.length; b++) {
+        for (int w = 0; w < worms.length; w++) {
+          if (!wormAlive[w]) continue;
+          if ((birds[b] - worms[w]).distance < wormRadius + birdSize / 2) {
+            wormAlive[w] = false;
             birdScore++;
+            if (_allWormsGone()) {
+              _endGame(true);
+            }
           }
         }
-      }
-      // Win/lose check
-      if (worms.where((w) => w.alive).isEmpty) {
-        _endGame(true);
       }
     });
   }
 
+  Offset _moveRandom(Offset pos, double speed, Size size) {
+    double dx = (speed * (_rand.nextDouble() * 2 - 1));
+    double dy = (speed * (_rand.nextDouble() * 2 - 1));
+    double nx = (pos.dx + dx).clamp(0, size.width);
+    double ny = (pos.dy + dy).clamp(0, size.height);
+    return Offset(nx, ny);
+  }
+
+  bool _allWormsGone() => wormAlive.every((alive) => !alive);
+
   void _endGame(bool win) {
-    timer.cancel();
-    _ticker.stop();
+    _timer.cancel();
+    _moveTimer.cancel();
     if (win) {
+      widget.stopAlarm();
       widget.onWin();
     } else {
       widget.onLose();
-      Future.delayed(const Duration(milliseconds: 800), () {
-        setState(() {
-          _initGame();
-          _ticker.start();
-          timer = Timer.periodic(const Duration(seconds: 1), (t) {
-            setState(() {
-              timeLeft--;
-              if (timeLeft <= 0) _endGame(false);
-            });
-          });
-        });
-      });
+      _startGame();
     }
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    if (canvasSize == null) return;
+    final tap = details.localPosition;
+    setState(() {
+      for (int i = 0; i < worms.length; i++) {
+        if (!wormAlive[i]) continue;
+        if ((worms[i] - tap).distance < wormRadius) {
+          wormAlive[i] = false;
+          playerScore++;
+          if (_allWormsGone()) {
+            _endGame(true);
+          }
+          break;
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
-    timer.cancel();
-    _ticker.dispose();
+    _timer.cancel();
+    _moveTimer.cancel();
     super.dispose();
-  }
-
-  void _onTapDown(TapDownDetails details) {
-    final tap = details.localPosition;
-    setState(() {
-      for (var worm in worms) {
-        if (!worm.alive) continue;
-        if ((worm.position - tap).distance < wormRadius) {
-          worm.alive = false;
-          playerScore++;
-        }
-      }
-      if (worms.where((w) => w.alive).isEmpty) {
-        _endGame(true);
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-        return GestureDetector(
-          onTapDown: _onTapDown,
-          child: CustomPaint(
-            size: Size.infinite,
-            painter: _MiniGamePainter(
-              worms: worms,
-              birds: birds,
-              wormRadius: wormRadius,
-              birdSize: birdSize,
-              playerScore: playerScore,
-              birdScore: birdScore,
-              timeLeft: timeLeft,
-            ),
-          ),
-        );
-      },
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mini Game')),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          canvasSize = Size(constraints.maxWidth, constraints.maxHeight - 100);
+          return Column(
+            children: [
+              SizedBox(
+                height: canvasSize!.height,
+                width: canvasSize!.width,
+                child: GestureDetector(
+                  onTapDown: _onTapDown,
+                  child: CustomPaint(
+                    painter: _GamePainter(
+                      worms: worms,
+                      birds: birds,
+                      wormAlive: wormAlive,
+                      wormRadius: wormRadius,
+                      birdSize: birdSize,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Text('Time: $timeLeft'),
+                    Text('Player: $playerScore'),
+                    Text('Bird: $birdScore'),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
 
-class _MiniGamePainter extends CustomPainter {
-  final List<_MiniGameState> worms;
-  final List<_MiniGameState> birds;
+class _GamePainter extends CustomPainter {
+  final List<Offset> worms;
+  final List<Offset> birds;
+  final List<bool> wormAlive;
   final double wormRadius;
   final double birdSize;
-  final int playerScore;
-  final int birdScore;
-  final int timeLeft;
 
-  _MiniGamePainter({
+  _GamePainter({
     required this.worms,
     required this.birds,
+    required this.wormAlive,
     required this.wormRadius,
     required this.birdSize,
-    required this.playerScore,
-    required this.birdScore,
-    required this.timeLeft,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    // Draw worms
-    for (var worm in worms) {
-      if (!worm.alive) continue;
-      paint.color = Colors.green;
-      canvas.drawCircle(worm.position, wormRadius, paint);
+    final wormPaint = Paint()..color = Colors.green;
+    final birdPaint = Paint()..color = Colors.blue;
+    for (int i = 0; i < worms.length; i++) {
+      if (wormAlive[i]) {
+        canvas.drawCircle(worms[i], wormRadius, wormPaint);
+      }
     }
-    // Draw birds
-    for (var bird in birds) {
-      if (!bird.alive) continue;
-      paint.color = Colors.red;
-      final rect = Rect.fromCenter(center: bird.position, width: birdSize, height: birdSize);
-      canvas.drawRect(rect, paint);
+    for (final b in birds) {
+      canvas.drawRect(Rect.fromCenter(center: b, width: birdSize, height: birdSize), birdPaint);
     }
-    // Draw scores and timer
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: 'You: $playerScore  Birds: $birdScore  Time: $timeLeft',
-        style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(canvas, const Offset(10, 10));
   }
 
   @override

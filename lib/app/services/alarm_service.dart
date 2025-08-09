@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import '../models/alarm.dart';
-import '../screens/game_screen.dart';
+import '../../game/mini_game.dart';
 
 class AlarmService {
   static final AlarmService _instance = AlarmService._internal();
@@ -10,6 +10,7 @@ class AlarmService {
 
   final Map<String, Timer> _activeAlarms = {};
   bool _isInitialized = false;
+  html.AudioElement? _audio;
 
   AlarmService._internal();
 
@@ -20,6 +21,19 @@ class AlarmService {
       final permission = await html.Notification.requestPermission();
       _isInitialized = permission == 'granted';
     }
+  }
+
+  void _playAlarmSound() {
+    _audio?.pause();
+    _audio = html.AudioElement();
+    _audio!.src = 'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg';
+    _audio!.loop = true;
+    _audio!.play();
+  }
+
+  void _stopAlarmSound() {
+    _audio?.pause();
+    _audio = null;
   }
 
   Future<void> scheduleAlarm(BuildContext context, Alarm alarm) async {
@@ -50,29 +64,26 @@ class AlarmService {
     // Cancel any existing timer for this alarm
     cancelAlarm(alarm.id);
 
-    // Schedule new timer
-    _activeAlarms[alarm.id] = Timer(delay, () {
-      _showNotification(context, alarm);
-    });
-  }
-
-  void _showNotification(BuildContext context, Alarm alarm) {
-    if (html.Notification.supported) {
-      html.Notification(
-        'Alarm: ${alarm.label}',
-        body: 'Time to wake up!',
-      );
-
-      // Navigate to game screen when notification is shown
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => GameScreen(alarmId: alarm.id),
+    _activeAlarms[alarm.id] = Timer(delay, () async {
+      _playAlarmSound();
+      if (_isInitialized) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => WillPopScope(
+            onWillPop: () async => false,
+            child: MiniGameScreen(
+              onWin: () {
+                _stopAlarmSound();
+                Navigator.of(ctx).pop();
+              },
+              onLose: () {},
+              stopAlarm: _stopAlarmSound,
+            ),
           ),
         );
-      });
-    }
+      }
+    });
   }
 
   void cancelAlarm(String id) {

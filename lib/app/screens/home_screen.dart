@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/alarm_provider.dart';
 import '../models/alarm.dart';
+import '../../game/mini_game.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,57 +23,114 @@ class HomeScreen extends StatelessWidget {
         ),
         elevation: 0,
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              Theme.of(context).colorScheme.surface,
-            ],
-          ),
-        ),
-        child: Consumer<AlarmProvider>(
-          builder: (context, alarmProvider, child) {
-            if (alarmProvider.alarms.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.alarm_outlined,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+      body: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                  Theme.of(context).colorScheme.surface,
+                ],
+              ),
+            ),
+            child: Consumer<AlarmProvider>(
+              builder: (context, alarmProvider, child) {
+                if (alarmProvider.alarms.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.alarm_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No alarms yet',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tap + to add your first alarm',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No alarms yet',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tap + to add your first alarm',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: alarmProvider.alarms.length,
-              itemBuilder: (context, index) {
-                final alarm = alarmProvider.alarms[index];
-                return _buildAlarmCard(context, alarm);
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: alarmProvider.alarms.length,
+                  itemBuilder: (context, index) {
+                    final alarm = alarmProvider.alarms[index];
+                    return _buildAlarmCard(context, alarm);
+                  },
+                );
               },
-            );
-          },
-        ),
+            ),
+          ),
+          Positioned(
+            bottom: 100,
+            right: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'miniGameBtn',
+              icon: const Icon(Icons.sports_esports),
+              label: const Text('Play Mini-Game'),
+              onPressed: () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MiniGameScreen(
+                      onWin: () {
+                        Navigator.of(context).pop('win');
+                      },
+                      onLose: () {
+                        Navigator.of(context).pop('lose');
+                      },
+                      stopAlarm: () {}, // No alarm for web demo
+                    ),
+                  ),
+                );
+                if (result == 'win') {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('You Win!'),
+                      content: const Text('Congratulations!'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (result == 'lose') {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('You Lose!'),
+                      content: const Text('Try again!'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddAlarmDialog(context),

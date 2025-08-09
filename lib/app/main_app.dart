@@ -11,7 +11,7 @@ class MainApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => AlarmProvider(),
       child: MaterialApp(
-        title: 'Puzukkeni',
+        title: 'Puzhukkeni',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
             seedColor: const Color(0xFF4A90E2), // Playful blue
