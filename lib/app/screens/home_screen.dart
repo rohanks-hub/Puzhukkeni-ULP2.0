@@ -9,36 +9,74 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Initialize alarm provider with context
     Provider.of<AlarmProvider>(context, listen: false).setContext(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Alarm App'),
+        title: const Text(
+          'Puzukkeni',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        elevation: 0,
       ),
-      body: Consumer<AlarmProvider>(
-        builder: (context, alarmProvider, child) {
-          if (alarmProvider.alarms.isEmpty) {
-            return const Center(
-              child: Text(
-                'No alarms set yet',
-                style: TextStyle(fontSize: 18),
-              ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.primary.withOpacity(0.05),
+              Theme.of(context).colorScheme.surface,
+            ],
+          ),
+        ),
+        child: Consumer<AlarmProvider>(
+          builder: (context, alarmProvider, child) {
+            if (alarmProvider.alarms.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.alarm_outlined,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No alarms yet',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tap + to add your first alarm',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: alarmProvider.alarms.length,
+              itemBuilder: (context, index) {
+                final alarm = alarmProvider.alarms[index];
+                return _buildAlarmCard(context, alarm);
+              },
             );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: alarmProvider.alarms.length,
-            itemBuilder: (context, index) {
-              final alarm = alarmProvider.alarms[index];
-              return _buildAlarmCard(context, alarm);
-            },
-          );
-        },
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddAlarmDialog(context),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, size: 32),
       ),
     );
   }
@@ -46,45 +84,59 @@ class HomeScreen extends StatelessWidget {
   Widget _buildAlarmCard(BuildContext context, Alarm alarm) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        title: Text(
-          DateFormat('HH:mm').format(alarm.time),
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: alarm.isActive ? Colors.black : Colors.grey,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showAddAlarmDialog(context, alarm),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('HH:mm').format(alarm.time),
+                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            color: alarm.isActive
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          alarm.label,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: alarm.isActive
+                              ? Theme.of(context).colorScheme.onSurface
+                              : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: alarm.isActive,
+                    onChanged: (value) {
+                      Provider.of<AlarmProvider>(context, listen: false)
+                          .toggleAlarm(alarm.id);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    color: Theme.of(context).colorScheme.error,
+                    onPressed: () {
+                      Provider.of<AlarmProvider>(context, listen: false)
+                          .deleteAlarm(alarm.id);
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
-        ),
-        subtitle: Text(
-          alarm.label,
-          style: TextStyle(
-            fontSize: 16,
-            color: alarm.isActive ? Colors.black87 : Colors.grey,
-          ),
-        ),
-        leading: Switch(
-          value: alarm.isActive,
-          onChanged: (bool value) {
-            Provider.of<AlarmProvider>(context, listen: false)
-                .toggleAlarm(alarm.id);
-          },
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => _showAddAlarmDialog(context, alarm),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () {
-                Provider.of<AlarmProvider>(context, listen: false)
-                    .deleteAlarm(alarm.id);
-              },
-            ),
-          ],
         ),
       ),
     );

@@ -1,7 +1,6 @@
+import 'dart:async';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
 import '../models/alarm.dart';
 import '../screens/game_screen.dart';
 
@@ -9,7 +8,7 @@ class AlarmService {
   static final AlarmService _instance = AlarmService._internal();
   factory AlarmService() => _instance;
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final Map<String, Timer> _activeAlarms = {};
   bool _isInitialized = false;
 
   AlarmService._internal();
@@ -17,64 +16,74 @@ class AlarmService {
   Future<void> init() async {
     if (_isInitialized) return;
 
-    tz.initializeTimeZones();
-
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initializationSettings = InitializationSettings(android: androidSettings);
-
-    await _notifications.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (details) {
-        // Handle notification tap
-        if (details.payload != null) {
-          debugPrint('Notification payload: ${details.payload}');
-        }
-      },
-    );
-
-    _isInitialized = true;
+    if (html.Notification.supported) {
+      final permission = await html.Notification.requestPermission();
+      _isInitialized = permission == 'granted';
+    }
   }
 
   Future<void> scheduleAlarm(BuildContext context, Alarm alarm) async {
-    await init();
+    if (!_isInitialized) await init();
 
     if (!alarm.isActive) {
-      await cancelAlarm(alarm.id);
+      cancelAlarm(alarm.id);
       return;
     }
 
-    final androidDetails = AndroidNotificationDetails(
-      'alarm_channel',
-      'Alarm Notifications',
-      channelDescription: 'Channel for alarm notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
-      fullScreenIntent: true,
-      playSound: true,
-    );
+    final now = DateTime.now();
+    final alarmTime = alarm.time;
+    var scheduledTime = alarmTime;
 
-    final notificationDetails = NotificationDetails(android: androidDetails);
+    // If alarm time is in the past, schedule for next day
+    if (alarmTime.isBefore(now)) {
+      scheduledTime = DateTime(
+        now.year,
+        now.month,
+        now.day + 1,
+        alarmTime.hour,
+        alarmTime.minute,
+      );
+    }
 
-    await _notifications.zonedSchedule(
-      alarm.id.hashCode,
-      'Alarm',
-      alarm.label,
-      tz.TZDateTime.from(alarm.time, tz.local),
-      notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-      payload: alarm.id,
-    );
+    final delay = scheduledTime.difference(now);
+
+    // Cancel any existing timer for this alarm
+    cancelAlarm(alarm.id);
+
+    // Schedule new timer
+    _activeAlarms[alarm.id] = Timer(delay, () {
+      _showNotification(context, alarm);
+    });
   }
 
-  Future<void> cancelAlarm(String id) async {
-    await _notifications.cancel(id.hashCode);
+  void _showNotification(BuildContext context, Alarm alarm) {
+    if (html.Notification.supported) {
+      html.Notification(
+        'Alarm: ${alarm.label}',
+        body: 'Time to wake up!',
+      );
+
+      // Navigate to game screen when notification is shown
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => GameScreen(alarmId: alarm.id),
+          ),
+        );
+      });
+    }
+  }
+
+  void cancelAlarm(String id) {
+    _activeAlarms[id]?.cancel();
+    _activeAlarms.remove(id);
   }
 
   void dispose() {
-    _notifications.cancelAll();
+    for (var timer in _activeAlarms.values) {
+      timer.cancel();
+    }
+    _activeAlarms.clear();
   }
 }
