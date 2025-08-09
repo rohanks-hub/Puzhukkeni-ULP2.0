@@ -19,7 +19,7 @@ class Alarm {
     bool? isActive,
   }) {
     return Alarm(
-      id: this.id,
+      id: id,
       time: time ?? this.time,
       label: label ?? this.label,
       isActive: isActive ?? this.isActive,
