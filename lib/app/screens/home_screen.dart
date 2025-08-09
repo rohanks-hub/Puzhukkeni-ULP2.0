@@ -15,7 +15,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Puzukkeni',
+          'Puzhukkeni',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
