@@ -24,6 +24,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  assets:
+    # This line tells Flutter to include EVERY file inside the assets/images folder.
+    # The slash at the end is important.
+    - assets/images/
+
 #  assets:
 #    - assets/images/
 #    - assets/sounds/

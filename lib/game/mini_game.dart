@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 class MiniGameScreen extends StatefulWidget {
@@ -17,28 +18,60 @@ class MiniGameScreen extends StatefulWidget {
   State<MiniGameScreen> createState() => _MiniGameScreenState();
 }
 
-class _MiniGameScreenState extends State<MiniGameScreen> {
+class _MiniGameScreenState extends State<MiniGameScreen> with SingleTickerProviderStateMixin {
   static const int wormCount = 12; // Increased number of worms
   static const int birdCount = 2;
-  static const double wormRadius = 20;
-  static const double birdSize = 30;
+  static const double wormRadius = 40; // Increased from 20
+  static const double birdSize = 60;  // Increased from 30
   static const int gameDuration = 20; // seconds
   final Random _rand = Random();
 
-  late List<Offset> worms;
-  late List<Offset> birds;
-  late List<bool> wormAlive;
+  List<Offset> worms = [];
+  List<Offset> birds = [];
+  List<bool> wormAlive = [];
   late Timer _timer;
   late Timer _moveTimer;
   int playerScore = 0;
   int birdScore = 0;
   int timeLeft = gameDuration;
   Size? canvasSize;
+  List<ui.Image>? wormFrames;
+  List<ui.Image>? birdFrames;
+  ui.Image? fieldImage;
+  int animationFrame = 0;
+  late Timer _animationTimer;
+  bool imagesLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _startGame();
+    _loadImages();
+    _animationTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      setState(() {
+        animationFrame = (animationFrame + 1) % 2;
+      });
+    });
+  }
+
+  Future<void> _loadImages() async {
+    final worm1 = await _loadUiImage('assets/images/worm1.png'); // reverted back to worm1.png
+    final worm2 = await _loadUiImage('assets/images/worm2.png');
+    final bird1 = await _loadUiImage('assets/images/bird.png');
+    final bird2 = await _loadUiImage('assets/images/bird2.png');
+    final field = await _loadUiImage('assets/images/field.png');
+    setState(() {
+      wormFrames = [worm1, worm2];
+      birdFrames = [bird1, bird2];
+      fieldImage = field;
+      imagesLoaded = true;
+    });
+  }
+
+  Future<ui.Image> _loadUiImage(String asset) async {
+    final data = await DefaultAssetBundle.of(context).load(asset);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    return frame.image;
   }
 
   void _startGame() {
@@ -159,6 +192,7 @@ class _MiniGameScreenState extends State<MiniGameScreen> {
   void dispose() {
     _timer.cancel();
     _moveTimer.cancel();
+    _animationTimer.cancel();
     super.dispose();
   }
 
@@ -169,8 +203,12 @@ class _MiniGameScreenState extends State<MiniGameScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-          if (worms.isEmpty || birds.isEmpty) {
+          // Only start the game after images are loaded and canvasSize is set
+          if (imagesLoaded && (worms.isEmpty || birds.isEmpty)) {
             WidgetsBinding.instance.addPostFrameCallback((_) => setState(_startGame));
+          }
+          if (!imagesLoaded || worms.isEmpty || birds.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
           }
           return GestureDetector(
             onTapDown: _onTapDown,
@@ -183,6 +221,10 @@ class _MiniGameScreenState extends State<MiniGameScreen> {
                     wormAlive: wormAlive,
                     wormRadius: wormRadius,
                     birdSize: birdSize,
+                    wormFrames: wormFrames!,
+                    birdFrames: birdFrames!,
+                    animationFrame: animationFrame,
+                    fieldImage: fieldImage,
                   ),
                   size: Size.infinite,
                 ),
@@ -235,6 +277,10 @@ class _GamePainter extends CustomPainter {
   final List<bool> wormAlive;
   final double wormRadius;
   final double birdSize;
+  final List<ui.Image> wormFrames;
+  final List<ui.Image> birdFrames;
+  final int animationFrame;
+  final ui.Image? fieldImage;
 
   _GamePainter({
     required this.worms,
@@ -242,19 +288,46 @@ class _GamePainter extends CustomPainter {
     required this.wormAlive,
     required this.wormRadius,
     required this.birdSize,
+    required this.wormFrames,
+    required this.birdFrames,
+    required this.animationFrame,
+    required this.fieldImage,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final wormPaint = Paint()..color = Colors.green;
-    final birdPaint = Paint()..color = Colors.blue;
+    // Draw background field
+    if (fieldImage != null) {
+      paintImage(
+        canvas: canvas,
+        rect: Rect.fromLTWH(0, 0, size.width, size.height),
+        image: fieldImage!,
+        fit: BoxFit.cover,
+      );
+    }
     for (int i = 0; i < worms.length; i++) {
       if (wormAlive[i]) {
-        canvas.drawCircle(worms[i], wormRadius, wormPaint);
+        final img = wormFrames[animationFrame];
+        final isWorm1 = animationFrame == 0;
+        paintImage(
+          canvas: canvas,
+          rect: Rect.fromCenter(center: worms[i], width: wormRadius * 2, height: wormRadius * 2),
+          image: img,
+          fit: BoxFit.contain,
+          colorFilter: isWorm1
+              ? const ColorFilter.mode(Color.fromARGB(153, 255, 255, 255), BlendMode.modulate) // 60% opacity
+              : null,
+        );
       }
     }
     for (final b in birds) {
-      canvas.drawRect(Rect.fromCenter(center: b, width: birdSize, height: birdSize), birdPaint);
+      final img = birdFrames[animationFrame];
+      paintImage(
+        canvas: canvas,
+        rect: Rect.fromCenter(center: b, width: birdSize, height: birdSize),
+        image: img,
+        fit: BoxFit.contain,
+      );
     }
   }
 
