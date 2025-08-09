@@ -49,7 +49,6 @@ class AlarmService {
       channelDescription: 'Channel for alarm notifications',
       importance: Importance.max,
       priority: Priority.high,
-      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
       fullScreenIntent: true,
       playSound: true,
     );
