@@ -1,72 +1,80 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import '../models/alarm.dart';
 import '../screens/game_screen.dart';
 
 class AlarmService {
   static final AlarmService _instance = AlarmService._internal();
   factory AlarmService() => _instance;
+
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  bool _isInitialized = false;
+
   AlarmService._internal();
 
-  final Map<String, Timer> _activeAlarms = {};
+  Future<void> init() async {
+    if (_isInitialized) return;
 
-  void scheduleAlarm(BuildContext context, Alarm alarm) {
-    // Don't schedule if alarm is inactive
+    tz.initializeTimeZones();
+
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const initializationSettings = InitializationSettings(android: androidSettings);
+
+    await _notifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (details) {
+        // Handle notification tap
+        if (details.payload != null) {
+          debugPrint('Notification payload: ${details.payload}');
+        }
+      },
+    );
+
+    _isInitialized = true;
+  }
+
+  Future<void> scheduleAlarm(BuildContext context, Alarm alarm) async {
+    await init();
+
     if (!alarm.isActive) {
-      cancelAlarm(alarm.id);
+      await cancelAlarm(alarm.id);
       return;
     }
 
-    // Cancel existing timer if any
-    cancelAlarm(alarm.id);
+    final androidDetails = AndroidNotificationDetails(
+      'alarm_channel',
+      'Alarm Notifications',
+      channelDescription: 'Channel for alarm notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
+      fullScreenIntent: true,
+      playSound: true,
+    );
 
-    final now = DateTime.now();
-    var scheduledTime = alarm.time;
+    final notificationDetails = NotificationDetails(android: androidDetails);
 
-    // If the alarm time is in the past, schedule it for tomorrow
-    if (scheduledTime.isBefore(now)) {
-      scheduledTime = DateTime(
-        now.year,
-        now.month,
-        now.day + 1,
-        alarm.time.hour,
-        alarm.time.minute,
-      );
-    }
-
-    final duration = scheduledTime.difference(now);
-
-    _activeAlarms[alarm.id] = Timer(duration, () {
-      _triggerAlarm(context, alarm);
-    });
+    await _notifications.zonedSchedule(
+      alarm.id.hashCode,
+      'Alarm',
+      alarm.label,
+      tz.TZDateTime.from(alarm.time, tz.local),
+      notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: alarm.id,
+    );
   }
 
-  void cancelAlarm(String alarmId) {
-    _activeAlarms[alarmId]?.cancel();
-    _activeAlarms.remove(alarmId);
-  }
-
-  void _triggerAlarm(BuildContext context, Alarm alarm) {
-    // TODO: Start playing alarm sound in a loop here
-
-    if (context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => GameScreen(alarmId: alarm.id),
-        ),
-      ).then((_) {
-        // Reschedule the alarm for the next day after it's dismissed
-        if (alarm.isActive) {
-          scheduleAlarm(context, alarm);
-        }
-      });
-    }
+  Future<void> cancelAlarm(String id) async {
+    await _notifications.cancel(id.hashCode);
   }
 
   void dispose() {
-    for (var timer in _activeAlarms.values) {
-      timer.cancel();
-    }
-    _activeAlarms.clear();
+    _notifications.cancelAll();
   }
 }
