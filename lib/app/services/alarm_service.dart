@@ -1,37 +1,80 @@
-import 'dart:isolate';
-import 'dart:ui';
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
-
-// Unique name for the callback
-const String miniGameCallbackName = 'miniGameCallback';
-
-// This function will be called when the alarm goes off
-void miniGameCallback() async {
-  // TODO: Implement logic to launch the mini-game
-  debugPrint('Alarm triggered! Launching mini-game...');
-  // You can use a background isolate or send a notification to open the mini-game screen
-}
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
+import '../models/alarm.dart';
+import '../screens/game_screen.dart';
 
 class AlarmService {
-  static Future<void> initialize() async {
-    await AndroidAlarmManager.initialize();
+  static final AlarmService _instance = AlarmService._internal();
+  factory AlarmService() => _instance;
+
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  bool _isInitialized = false;
+
+  AlarmService._internal();
+
+  Future<void> init() async {
+    if (_isInitialized) return;
+
+    tz.initializeTimeZones();
+
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const initializationSettings = InitializationSettings(android: androidSettings);
+
+    await _notifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (details) {
+        // Handle notification tap
+        if (details.payload != null) {
+          debugPrint('Notification payload: ${details.payload}');
+        }
+      },
+    );
+
+    _isInitialized = true;
   }
 
-  static Future<void> scheduleAlarm(DateTime dateTime, int id) async {
-    final duration = dateTime.difference(DateTime.now());
-    await AndroidAlarmManager.oneShot(
-      duration,
-      id,
-      miniGameCallback,
-      exact: true,
-      wakeup: true,
-      rescheduleOnReboot: true,
+  Future<void> scheduleAlarm(BuildContext context, Alarm alarm) async {
+    await init();
+
+    if (!alarm.isActive) {
+      await cancelAlarm(alarm.id);
+      return;
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      'alarm_channel',
+      'Alarm Notifications',
+      channelDescription: 'Channel for alarm notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
+      fullScreenIntent: true,
+      playSound: true,
+    );
+
+    final notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notifications.zonedSchedule(
+      alarm.id.hashCode,
+      'Alarm',
+      alarm.label,
+      tz.TZDateTime.from(alarm.time, tz.local),
+      notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: alarm.id,
     );
   }
 
-  static Future<void> cancelAlarm(int id) async {
-    await AndroidAlarmManager.cancel(id);
+  Future<void> cancelAlarm(String id) async {
+    await _notifications.cancel(id.hashCode);
+  }
+
+  void dispose() {
+    _notifications.cancelAll();
   }
 }
-
